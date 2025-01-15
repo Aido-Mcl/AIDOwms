@@ -1,13 +1,13 @@
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
-from flask_cors import CORS  # Import flask-cors
+from flask_cors import CORS
 import uuid
 
 # Initialize Flask app
 app = Flask(__name__)
 
 # Enable CORS
-CORS(app, resources={r"/api/*": {"origins": "*"}})  # Allow all origins to access /api/*
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Configure SQLite database
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///warehouse.db'
@@ -38,7 +38,7 @@ class GoodsReceipt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     work_order = db.Column(db.String(100), nullable=False, unique=True)
     status = db.Column(db.String(50), nullable=False, default="not started")
-    po_number = db.Column(db.String(100), nullable=False)  # Reference to the PO number
+    po_number = db.Column(db.String(100), nullable=False)
     inbound_document_id = db.Column(db.Integer, db.ForeignKey('inbound_document.id'), nullable=False)
     items = db.relationship('GoodsReceiptItem', backref='goods_receipt', lazy=True)
 
@@ -54,85 +54,61 @@ class GoodsReceiptItem(db.Model):
 with app.app_context():
     db.create_all()
 
-    # Add sample data if database is empty
+# Add sample data
+with app.app_context():
     if not InboundDocument.query.first():
-        # InboundDocument and OrderedItems
-        inbound_doc = InboundDocument(po_number="PO12345", vendor="Vendor A", date="2025-01-01")
-        ordered_item_1 = OrderedItem(
-            product="Product A1",
-            product_description="Description A1",
-            qty=10,
-            price=15.0,
-            total_price=150.0,
-            inbound_document=inbound_doc
-        )
-        ordered_item_2 = OrderedItem(
-            product="Product A2",
-            product_description="Description A2",
-            qty=5,
-            price=20.0,
-            total_price=100.0,
-            inbound_document=inbound_doc
-        )
-        db.session.add(inbound_doc)
-        db.session.add(ordered_item_1)
-        db.session.add(ordered_item_2)
-
-        # GoodsReceipt and GoodsReceiptItems
-        goods_receipt = GoodsReceipt(
-            work_order=f"GR-{uuid.uuid4().hex[:8]}",
-            status="in progress",
-            po_number="PO12345",
-            inbound_document_id=inbound_doc.id
-        )
-        gr_item_1 = GoodsReceiptItem(
-            product="Product A1",
-            product_description="Description A1",
-            qty=10,
-            goods_receipt=goods_receipt
-        )
-        gr_item_2 = GoodsReceiptItem(
-            product="Product A2",
-            product_description="Description A2",
-            qty=5,
-            goods_receipt=goods_receipt
-        )
-        db.session.add(goods_receipt)
-        db.session.add(gr_item_1)
-        db.session.add(gr_item_2)
+        # Create an InboundDocument and related data
+        document = InboundDocument(po_number="PO12346", vendor="Vendor B", date="2025-01-14")
+        db.session.add(document)
         db.session.commit()
 
-# API route to get inbound documents
-@app.route('/api/inbound-documents', methods=['GET'])
-def get_inbound_documents():
-    documents = InboundDocument.query.all()
-    if not documents:
-        return jsonify({"message": "No inbound documents found."}), 200
+        # Add OrderedItems
+        item_1 = OrderedItem(
+            product="Product B1",
+            product_description="Description B1",
+            qty=15,
+            price=8.0,
+            total_price=120.0,
+            inbound_document_id=document.id
+        )
+        item_2 = OrderedItem(
+            product="Product B2",
+            product_description="Description B2",
+            qty=10,
+            price=12.0,
+            total_price=120.0,
+            inbound_document_id=document.id
+        )
+        db.session.add_all([item_1, item_2])
+        db.session.commit()
 
-    documents_list = []
-    for doc in documents:
-        items = OrderedItem.query.filter_by(inbound_document_id=doc.id).all()
-        items_list = [
-            {
-                "product": item.product,
-                "product_description": item.product_description,
-                "qty": item.qty,
-                "price": item.price,
-                "total_price": item.total_price
-            }
-            for item in items
-        ]
-        documents_list.append({
-            "id": doc.id,
-            "po_number": doc.po_number,
-            "vendor": doc.vendor,
-            "date": doc.date,
-            "items": items_list
-        })
+        # Add a GoodsReceipt
+        goods_receipt = GoodsReceipt(
+            work_order=f"GR-{uuid.uuid4().hex[:8]}",
+            status="not started",
+            po_number=document.po_number,
+            inbound_document_id=document.id
+        )
+        db.session.add(goods_receipt)
+        db.session.commit()
 
-    return jsonify(documents_list), 200
+        # Add GoodsReceiptItems
+        gr_item_1 = GoodsReceiptItem(
+            product=item_1.product,
+            product_description=item_1.product_description,
+            qty=item_1.qty,
+            goods_receipt_id=goods_receipt.id
+        )
+        gr_item_2 = GoodsReceiptItem(
+            product=item_2.product,
+            product_description=item_2.product_description,
+            qty=item_2.qty,
+            goods_receipt_id=goods_receipt.id
+        )
+        db.session.add_all([gr_item_1, gr_item_2])
+        db.session.commit()
 
-# API route to get goods receipts test
+# API route to get goods receipts
 @app.route('/api/goods-receipts', methods=['GET'])
 def get_goods_receipts():
     goods_receipts = GoodsReceipt.query.all()
