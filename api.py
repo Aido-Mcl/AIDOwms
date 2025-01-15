@@ -33,17 +33,6 @@ class OrderedItem(db.Model):
     total_price = db.Column(db.Float, nullable=False)
     inbound_document_id = db.Column(db.Integer, db.ForeignKey('inbound_document.id'), nullable=False)
 
-# Define the Product model
-class Product(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    product = db.Column(db.String(100), nullable=False)
-    product_description = db.Column(db.String(200), nullable=False)
-    price = db.Column(db.Float, nullable=True)
-    barcode = db.Column(db.String(100), nullable=True)
-    height = db.Column(db.Float, nullable=True)
-    width = db.Column(db.Float, nullable=True)
-    length = db.Column(db.Float, nullable=True)
-
 # Define the GoodsReceipt model
 class GoodsReceipt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -65,7 +54,53 @@ class GoodsReceiptItem(db.Model):
 with app.app_context():
     db.create_all()
 
-# Sample data addition omitted for brevity (same as before)
+    # Add sample data if database is empty
+    if not InboundDocument.query.first():
+        # InboundDocument and OrderedItems
+        inbound_doc = InboundDocument(po_number="PO12345", vendor="Vendor A", date="2025-01-01")
+        ordered_item_1 = OrderedItem(
+            product="Product A1",
+            product_description="Description A1",
+            qty=10,
+            price=15.0,
+            total_price=150.0,
+            inbound_document=inbound_doc
+        )
+        ordered_item_2 = OrderedItem(
+            product="Product A2",
+            product_description="Description A2",
+            qty=5,
+            price=20.0,
+            total_price=100.0,
+            inbound_document=inbound_doc
+        )
+        db.session.add(inbound_doc)
+        db.session.add(ordered_item_1)
+        db.session.add(ordered_item_2)
+
+        # GoodsReceipt and GoodsReceiptItems
+        goods_receipt = GoodsReceipt(
+            work_order=f"GR-{uuid.uuid4().hex[:8]}",
+            status="in progress",
+            po_number="PO12345",
+            inbound_document_id=inbound_doc.id
+        )
+        gr_item_1 = GoodsReceiptItem(
+            product="Product A1",
+            product_description="Description A1",
+            qty=10,
+            goods_receipt=goods_receipt
+        )
+        gr_item_2 = GoodsReceiptItem(
+            product="Product A2",
+            product_description="Description A2",
+            qty=5,
+            goods_receipt=goods_receipt
+        )
+        db.session.add(goods_receipt)
+        db.session.add(gr_item_1)
+        db.session.add(gr_item_2)
+        db.session.commit()
 
 # API route to get inbound documents
 @app.route('/api/inbound-documents', methods=['GET'])
@@ -97,7 +132,7 @@ def get_inbound_documents():
 
     return jsonify(documents_list), 200
 
-# API route to get goods receipts
+# API route to get goods receipts test
 @app.route('/api/goods-receipts', methods=['GET'])
 def get_goods_receipts():
     goods_receipts = GoodsReceipt.query.all()
